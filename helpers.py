@@ -78,7 +78,10 @@ def get_cutting_length(path):
                 total_length += 2 * math.pi * e.dxf.radius
 
             elif etype == "ARC":
-                theta = math.radians(abs(e.dxf.end_angle - e.dxf.start_angle))
+                sweep = (e.dxf.end_angle - e.dxf.start_angle) % 360
+                if sweep == 0:
+                    sweep = 360
+                theta = math.radians(sweep) 
                 total_length += e.dxf.radius * theta
 
             elif etype == "LWPOLYLINE":
