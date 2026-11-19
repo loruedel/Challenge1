@@ -46,7 +46,8 @@ def get_dxf_bounds(path):
 
             if not pts:
                 continue
-            # HIER FEHLT EIN KOMMENTAR
+            
+            # ensure each point has only x,y
             xs, ys = zip(*[(p[0], p[1]) for p in pts if len(p) >= 2])
             min_x, max_x = min(min_x, *xs), max(max_x, *xs)
             min_y, max_y = min(min_y, *ys), max(max_y, *ys)
