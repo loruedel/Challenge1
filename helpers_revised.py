@@ -117,6 +117,35 @@ def get_cutting_length(path):
     return total_length
 
 
+def get_marker_line_length(path, tol=0.01):         # <<< NEU: Berechnet die Länge unverbundener Linien
+    """Länge aller LINEs, deren Mittelpunkt auf einem POINT liegt (vermutete Markierungen)."""
+    try:
+        msp = ezdxf.readfile(path).modelspace()
+        lines = list(msp.query("LINE"))
+        points = list(msp.query("POINT"))
+        length, matched = 0.0, 0
+        for p in points:
+            px, py = p.dxf.location.x, p.dxf.location.y
+            for e in lines:
+                s, t = e.dxf.start, e.dxf.end
+                if math.dist(((s.x + t.x) / 2, (s.y + t.y) / 2), (px, py)) < tol:
+                    length += math.dist((s.x, s.y), (t.x, t.y))
+                    matched += 1
+                    break
+        return length, matched, len(points)
+    except (OSError, ezdxf.DXFError):
+        return None, 0, 0
+
+
+def get_cutting_lengths(path):                      # <<< NEU: Gibt Gesamtlänge & Länge zusammenhängender Linien zurück
+    """Gibt (Länge inkl. Markierungslinien, Länge ohne Markierungslinien) zurück."""
+    total = get_cutting_length(path)
+    if total is None:
+        return None, None
+    marker, _, _ = get_marker_line_length(path)
+    return total, total - marker
+
+
 def _get_faces(path, area_tolerance=1e-3):               # <<< NEU
     """
     Verbindet alle Linien/Bögen/Kreise zu Flächen (polygonize).
@@ -186,7 +215,7 @@ def get_number_of_parts(path):                           # <<< NEU
         return None, None
 
 
-def get_point_context(path):                             # <<< NEU (Diagnose)
+def get_point_context(path):                             # <<< NEU (Diagnose der Punkt-Relevanz)
     """Pro POINT: Tiefe der innersten Fläche, in der er liegt (0 = Material, 1 = in Aussparung)."""
     msp = ezdxf.readfile(path).modelspace()
     faces = _get_faces(path)
