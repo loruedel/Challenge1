@@ -3,3 +3,5 @@ matplotlib
 ezdxf
 shapely
 jupyter
+seaborn
+openpyxl
