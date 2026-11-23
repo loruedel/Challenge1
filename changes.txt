@@ -1,3 +1,4 @@
 merge similar customer names
 deleted order duplicates
-changed helper functions 
+changed helper functions
+removed lines in Geo 2 (see "DXF_Analysis")
