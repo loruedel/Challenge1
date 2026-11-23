@@ -1,0 +1,3 @@
+merge similar customer names
+deleted order duplicates
+changed helper functions 

@@ -8,7 +8,7 @@ from ezdxf.path import make_path                         # <<< NEW
 SNAP = 3  # <<< NEW: Round coordinates for closed contours(0.001 mm)
 
 
-def _flatten(e, dist=0.001):                             # <<< NEU
+def flatten(e, dist=0.001):                             # <<< NEU
     """LINE/ARC/CIRCLE as a point list (x, y), rounded to SNAP"""
     return [(round(v.x, SNAP), round(v.y, SNAP)) for v in make_path(e).flattening(dist)]
 
@@ -34,7 +34,7 @@ def get_dxf_bounds(path):
                 pts = [(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)]
 
             elif e.dxftype() == "ARC":                   # <<< NEW: only the actual arc, not the whole circle
-                pts = _flatten(e)
+                pts = flatten(e)
 
             elif e.dxftype() == "LWPOLYLINE":
                 pts = [(float(p[0]), float(p[1])) for p in e.get_points() if len(p) >= 2]
@@ -143,8 +143,46 @@ def get_cutting_length(path):
 
     return total_length
 
+def _bridge_gaps(lines, gap_tol=2.0, touch_tol=1e-6):    # <<< NEU (ersetzt _weld_endpoints)
+    """Verbindet freie Endpunkte mit dem gegenseitig nächsten freien Endpunkt (<= gap_tol)."""
+    endpoints = []
 
-def _get_faces(path, area_tolerance=1e-3):               # <<< NEW
+    for i, ln in enumerate(lines):
+        if ln.coords[0] == ln.coords[-1]:
+            continue
+
+        endpoints.append((i, tuple(ln.coords[0])))
+        endpoints.append((i, tuple(ln.coords[-1])))
+
+    free = []
+
+    for a, (i, p) in enumerate(endpoints):
+        pt = Point(p)
+
+        # Prüfen, ob ein anderer Linien-Endpunkt bereits dort liegt
+        connected = any(
+            j != i and math.dist(p, q) <= touch_tol
+            for j, q in endpoints
+        )
+
+        if not connected:
+            free.append((i, p))
+    
+    bridges = []
+    for a, (i, p) in enumerate(free):
+        cand = [(math.dist(p, q), b) for b, (j, q) in enumerate(free) if j != i]
+        if not cand:
+            continue
+        d, b = min(cand)
+        if d <= gap_tol and a < b:
+            j, q = free[b]
+            back = min((math.dist(q, r), c) for c, (k, r) in enumerate(free) if k != j)
+            if back[1] == a:                             # gegenseitig nächste Nachbarn
+                bridges.append(LineString([p, q]))
+    return lines + bridges
+
+
+def get_faces(path, area_tolerance=1e-3):               # <<< NEW
     """
     Combines all LINEs/ARCs/CIRCLEs into surfaces (polygonize).
     Returns: A list of (Polygon, Depth). Depth 0 = material, 1 = hole,
@@ -154,8 +192,10 @@ def _get_faces(path, area_tolerance=1e-3):               # <<< NEW
     lines = []
     for e in doc.modelspace():
         etype = e.dxftype()
-        if etype in ("LINE", "ARC", "CIRCLE"):
-            pts = _flatten(e)
+        if etype == "LINE" and "CENTER" in e.dxf.linetype.upper():   # <<< NEU: Markierungslinien nicht als Kontur
+            continue
+        elif etype in ("ARC", "CIRCLE"):
+            pts = flatten(e)
         elif etype == "LWPOLYLINE":
             pts = [(round(float(p[0]), SNAP), round(float(p[1]), SNAP)) for p in e.get_points()]
             if e.closed:
@@ -170,7 +210,7 @@ def _get_faces(path, area_tolerance=1e-3):               # <<< NEW
         if len(set(pts)) >= 2:
             lines.append(LineString(pts))
 
-    faces = [f for f in polygonize(unary_union(lines)) if f.area > area_tolerance]
+    faces = [f for f in polygonize(unary_union(_bridge_gaps(lines))) if f.area > area_tolerance]   # <<< CHANGED: includes bridge_gaps()
     outlines = [Polygon(f.exterior) for f in faces]
     result = []
     for i, f in enumerate(faces):
@@ -192,7 +232,7 @@ def get_number_of_holes(path, area_tolerance=1e-3):
         int: Number of detected holes (None on read error).
     """
     try:
-        faces = _get_faces(path, area_tolerance)         # <<< CHANGED: complete logic replaced
+        faces = get_faces(path, area_tolerance)         # <<< CHANGED: complete logic replaced
         # Hole = Inside hole of a material surface (even depth).
         return sum(len(f.interiors) for f, depth in faces if depth % 2 == 0)
 
@@ -206,7 +246,7 @@ def get_number_of_parts(path):                           # <<< NEW
     try:
         msp = ezdxf.readfile(path).modelspace()
         n_points = len(msp.query("POINT"))
-        n_faces = sum(1 for f, depth in _get_faces(path) if depth % 2 == 0)
+        n_faces = sum(1 for f, depth in get_faces(path) if depth % 2 == 0)
         return n_points, n_faces
     except Exception as ex:
         print(f"Error reading {path}: {ex}")
@@ -216,7 +256,7 @@ def get_number_of_parts(path):                           # <<< NEW
 def get_point_context(path):                             # <<< NEW: (Study POINT-Relevance)
     """For each POINT: Depth of the deepest surface it lays in (0 = material, 1 = scrap)."""
     msp = ezdxf.readfile(path).modelspace()
-    faces = _get_faces(path)
+    faces = get_faces(path)
     out = []
     for p in msp.query("POINT"):
         pt = Point(p.dxf.location.x, p.dxf.location.y)
@@ -227,7 +267,7 @@ def get_point_context(path):                             # <<< NEW: (Study POINT
 def get_line_context(path, tol=0.01):                    # <<< NEW: (Study LINE-Relevance)
     """For each unconnected LINE: Depth of the deepest surface which completely contains the it
     (0 = Material, 1 = Scrap, None = in keiner Fläche bzw. schneidet eine Kontur)."""
-    faces = _get_faces(path)
+    faces = get_faces(path)
     out = []
     for line in get_unconnected_lines(path, tol):
         depths = [d for f, d in faces if Polygon(f.exterior).contains(line)]
@@ -274,7 +314,7 @@ def load_dxf_geometry(file_path):
 
         # Arc
         elif etype == "ARC":                             # <<< NEW
-            lines.append(LineString(_flatten(e, 0.01)))
+            lines.append(LineString(flatten(e, 0.01)))
 
         # Line
         elif etype == "LINE":
