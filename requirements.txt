@@ -5,8 +5,5 @@ shapely
 jupyter
 seaborn
 openpyxl
-os
-math
 numpy
-re
-difflib
+scipy

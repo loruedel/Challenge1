@@ -1,15 +1,14 @@
 import ezdxf
 import matplotlib.pyplot as plt
 import math
-from pathlib import Path
 from shapely.geometry import Point, LineString, Polygon
-from shapely.ops import unary_union, polygonize          # <<< NEW
-from ezdxf.path import make_path                         # <<< NEW
+from shapely.ops import unary_union, polygonize                         # <<< NEW
+from ezdxf.path import make_path                                        # <<< NEW
 
 SNAP = 3  # <<< NEW: Round coordinates for closed contours(0.001 mm)
 
 
-def flatten(e, dist=0.001):                             # <<< NEU
+def flatten(e, dist=0.001):                             # <<< NEW
     """LINE/ARC/CIRCLE as a point list (x, y), rounded to SNAP"""
     return [(round(v.x, SNAP), round(v.y, SNAP)) for v in make_path(e).flattening(dist)]
 
@@ -144,7 +143,7 @@ def get_cutting_length(path):
 
     return total_length
 
-def bridge_gaps(lines, gap_tol=2.0, touch_tol=1e-6):    # <<< NEU (ersetzt _weld_endpoints)
+def bridge_gaps(lines, gap_tol=2.0, touch_tol=1e-6):    # <<< NEW
     """Verbindet freie Endpunkte mit dem gegenseitig nächsten freien Endpunkt (<= gap_tol)."""
     endpoints = []
 
@@ -160,7 +159,7 @@ def bridge_gaps(lines, gap_tol=2.0, touch_tol=1e-6):    # <<< NEU (ersetzt _weld
     for a, (i, p) in enumerate(endpoints):
         pt = Point(p)
 
-        # Prüfen, ob ein anderer Linien-Endpunkt bereits dort liegt
+        # Check whether another line endpoint is already located there
         connected = any(
             j != i and math.dist(p, q) <= touch_tol
             for j, q in endpoints
@@ -178,7 +177,7 @@ def bridge_gaps(lines, gap_tol=2.0, touch_tol=1e-6):    # <<< NEU (ersetzt _weld
         if d <= gap_tol and a < b:
             j, q = free[b]
             back = min((math.dist(q, r), c) for c, (k, r) in enumerate(free) if k != j)
-            if back[1] == a:                             # gegenseitig nächste Nachbarn
+            if back[1] == a:                             # mutually nearest neighbors
                 bridges.append(LineString([p, q]))
     return lines + bridges
 
@@ -193,7 +192,7 @@ def get_faces(path, area_tolerance=1e-3):               # <<< NEW
     lines = []
     for e in doc.modelspace():
         etype = e.dxftype()
-        if etype == "LINE" and "CENTER" in e.dxf.linetype.upper():   # <<< NEU: Markierungslinien nicht als Kontur
+        if etype == "LINE" and "CENTER" in e.dxf.linetype.upper():   # <<< NEW: marker LINEs are not part of the contour
             continue
         elif etype in ("LINE", "ARC", "CIRCLE"):
             pts = flatten(e)
@@ -240,194 +239,6 @@ def get_number_of_holes(path, area_tolerance=1e-3):
     except Exception as ex:
         print(f"Error reading {path}: {ex}")
         return None                                      # <<< CHANGED: replacing 0
-
-
-def inspect_small_faces(path):
-    doc = ezdxf.readfile(path)
-
-    lines = [
-        LineString(flatten(e))
-        for e in doc.modelspace()
-        if e.dxftype() in ("LINE", "ARC", "CIRCLE")
-        and not (
-            e.dxftype() == "LINE"
-            and "CENTER" in e.dxf.linetype.upper()
-        )
-    ]
-
-    merged = unary_union(bridge_gaps(lines))
-    polygons, _, _, _ = polygonize_full(merged)
-
-    for i, poly in enumerate(polygons.geoms):
-        print(f"\nPolygon {i}")
-        print(f"Fläche: {poly.area:.6f}")
-        print(f"Umfang: {poly.length:.6f}")
-        print(f"Bounds: {poly.bounds}")
-        print("Koordinaten:")
-
-        for coord in poly.exterior.coords:
-            print(tuple(round(v, 4) for v in coord))
-
-
-def debug_faces(path):
-    faces = get_faces(path)
-
-    print(f"\n{Path(path).name}")
-    print(f"Anzahl polygonisierter Flächen: {len(faces)}")
-
-    parts = 0
-    holes = 0
-
-    for i, (f, depth) in enumerate(faces):
-        is_part = depth % 2 == 0
-
-        if is_part:
-            parts += 1
-        else:
-            holes += 1
-
-        print(
-            f"Face {i:02d} | "
-            f"Depth: {depth} | "
-            f"Typ: {'Teil' if is_part else 'Loch'} | "
-            f"Fläche: {f.area:.3f} | "
-            f"Innenringe: {len(f.interiors)} | "
-            f"Gültig: {f.is_valid}"
-        )
-
-    print("-" * 60)
-    print(f"Teile: {parts}")
-    print(f"Löcher: {holes}")
-
-
-from shapely.ops import polygonize_full
-
-
-def plot_problem_area(path):
-    doc = ezdxf.readfile(path)
-
-    # Ursprüngliche Geometrie laden
-    lines = [
-        LineString(flatten(e))
-        for e in doc.modelspace()
-        if e.dxftype() in ("LINE", "ARC", "CIRCLE")
-        and not (
-            e.dxftype() == "LINE"
-            and "CENTER" in e.dxf.linetype.upper()
-        )
-    ]
-
-    # Brücken erzeugen
-    bridged = bridge_gaps(lines)
-    bridges = bridged[len(lines):]
-
-    # Geometrie polygonisieren
-    merged = unary_union(bridged)
-    polygons, _, _, _ = polygonize_full(merged)
-
-    fig, ax = plt.subplots(figsize=(12, 8))
-
-    # Alle ursprünglichen Linien zeichnen
-    for line in lines:
-        x, y = line.xy
-        ax.plot(x, y, color="black", linewidth=1.5)
-
-    # Brücken rot markieren
-    for bridge in bridges:
-        x, y = bridge.xy
-        ax.plot(x, y, color="blue", linewidth=2.5,
-                label="Erzeugte Brücke")
-
-    # Kleine Polygone hervorheben
-    for i, poly in enumerate(polygons.geoms):
-        if poly.area < 10:
-            x, y = poly.exterior.xy
-            ax.fill(x, y, color="orange", alpha=0.4)
-            ax.plot(x, y, color="orange", linewidth=2,
-                    label=f"Artefakt: {poly.area:.3f}")
-
-    # Problemstelle automatisch anhand der kleinen Polygone bestimmen
-    small_faces = [
-        p for p in polygons.geoms if p.area < 10
-    ]
-
-    if small_faces:
-        minx = min(p.bounds[0] for p in small_faces)
-        miny = min(p.bounds[1] for p in small_faces)
-        maxx = max(p.bounds[2] for p in small_faces)
-        maxy = max(p.bounds[3] for p in small_faces)
-
-        margin = 3
-
-        ax.set_xlim(minx - margin, maxx + margin)
-        ax.set_ylim(miny - margin, maxy + margin)
-
-    ax.set_aspect("equal")
-    ax.grid(True)
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_title(f"Vergrößerte Problemstelle: {Path(path).name}")
-
-    # Doppelte Legendeneinträge vermeiden
-    handles, labels = ax.get_legend_handles_labels()
-    unique = dict(zip(labels, handles))
-    ax.legend(unique.values(), unique.keys())
-
-    plt.show()
-
-
-def debug_polygonize(path):
-    doc = ezdxf.readfile(path)
-
-    lines = [
-        LineString(flatten(e))
-        for e in doc.modelspace()
-        if e.dxftype() in ("LINE", "ARC", "CIRCLE")
-        and not (
-            e.dxftype() == "LINE"
-            and "CENTER" in e.dxf.linetype.upper()
-        )
-    ]
-
-    bridged = bridge_gaps(lines)
-    bridges = bridged[len(lines):]
-
-    merged = unary_union(bridged)
-
-    polygons, dangles, cuts, invalids = polygonize_full(merged)
-
-    print(f"\n{Path(path).name}")
-    print("Ursprüngliche Linien:", len(lines))
-    print("Erzeugte Brücken:", len(bridges))
-
-    for i, bridge in enumerate(bridges):
-        print(
-            f"Bridge {i}: {list(bridge.coords)}, "
-            f"Länge: {bridge.length:.4f}"
-        )
-
-    print("Polygonisierte Flächen:", len(polygons.geoms))
-    print("Dangles:", len(dangles.geoms))
-    print("Cuts:", len(cuts.geoms))
-    print("Invalid rings:", len(invalids.geoms))
-
-    for name, geom in [
-        ("DANGLE", dangles),
-        ("CUT", cuts),
-        ("INVALID", invalids)
-    ]:
-        for i, line in enumerate(geom.geoms):
-            print(
-                f"{name} {i}: Länge={line.length:.4f}, "
-                f"Start={line.coords[0]}, "
-                f"Ende={line.coords[-1]}"
-            )
-
-    for i, poly in enumerate(polygons.geoms):
-        print(
-            f"Polygon {i}: Fläche={poly.area:.3f}, "
-            f"Innenringe={len(poly.interiors)}"
-        )
 
 
 def get_number_of_parts(path):                           # <<< NEW
