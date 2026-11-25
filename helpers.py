@@ -220,6 +220,27 @@ def get_faces(path, area_tolerance=1e-3):               # <<< NEW
     return result
 
 
+def get_rectangularity(path):
+    """
+    Rectangularity Ratio = material surfaces (netto) / Bounding-Box-Area.
+    Returns: float between 0..1 (None for errors).
+    """
+    try:
+        width, height = get_dxf_bounds(path)
+        if not width or not height:
+            return None
+
+        faces = get_faces(path)
+        # f.area ist bereits die Fläche ohne die eigenen Interiors (Löcher)
+        material_area = sum(f.area for f, depth in faces if depth % 2 == 0)
+
+        return material_area / (width * height)
+
+    except Exception as ex:
+        print(f"Error reading {path}: {ex}")
+        return None
+
+
 def get_number_of_holes(path, area_tolerance=1e-3):
     """
     Estimate the number of holes (internal cutouts) in a DXF file.
