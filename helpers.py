@@ -220,7 +220,7 @@ def get_faces(path, area_tolerance=1e-3):               # <<< NEW
     return result
 
 
-def get_rectangularity(path):
+def get_rectangularity_ratio(path):
     """
     Rectangularity Ratio = material surfaces (netto) / Bounding-Box-Area.
     Returns: float between 0..1 (None for errors).
