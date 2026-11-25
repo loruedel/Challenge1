@@ -1,26 +1,26 @@
-Data preparation:
+Data preparation: Jannick
 - merge branch with name
 
-Additional fratures:
+Additional fratures: Louis
 - rectengular ratio
 
-Univariate:
+Univariate: Tabea
+- add rectengular ratio 
+- adjust to customer name/ branch
+- note unusual things
+
+Multivariate: Basti
 - add rectengular ratio
 - adjust to customer name/ branch
 - note unusual things
 
-Multivariate:
-- add rectengular ratio
-- adjust to customer name/ branch
-- note unusual things
-
-Outlier detection:
+Outlier detection: Louis
 - seprate notebook
 
-Limitations:
+Limitations: Tabea
 - machine parameters, matherial data
 
-Trade off:
+Trade off: Jannick
 - cutting/ retrieval
 
 Presentation
