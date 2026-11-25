@@ -6,3 +6,4 @@ Code run order:
 3. Additional complexity-related feature analysis
 4. univariate_analyis
 5. bivariate and multivariate analysis
+6. outlier detection
