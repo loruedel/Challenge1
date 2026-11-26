@@ -16,6 +16,9 @@ Univariate: Tabea
 Limitations: Tabea
 -> in limitations text file
 
+Outlier detection: Louis
+- seprate notebook
+
 ### TO-DO:
 
 Data preparation: Jannick
@@ -30,9 +33,6 @@ Multivariate: Basti
 - add markdown
 - adjust to customer name/ branch
 - note unusual things
-
-Outlier detection: Louis
-- seprate notebook
 
 
 Trade off: Jannick
