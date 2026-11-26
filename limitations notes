@@ -1,0 +1,5 @@
+Missing information: 
+- material (type, material thickness,...)
+- specific machine parameters (cutting speed, cutter speed, power, retrieval time per sheet, removal time per big part,...)
+- distribution of parts per sheet
+- organisational effort: time for potential change of tools/ materials/ settings per batch (not per part)
