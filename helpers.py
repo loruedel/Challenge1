@@ -248,6 +248,9 @@ def get_rectangularity_ratio(path):
         return None
 
 
+def get_pierce_points(path):
+    return len(get_faces(path))
+
 def get_number_of_holes(path, area_tolerance=1e-3):
     """
     Estimate the number of holes (internal cutouts) in a DXF file.
