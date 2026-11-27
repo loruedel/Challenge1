@@ -248,16 +248,19 @@ def get_rectangularity_ratio(path):
         return None
 
 
-def get_pierce_per_length_ratio(path):
+def get_pierce_density(path):
     try:
-        return (len(get_faces(path)) * 100)/ get_cutting_length(path)
+        length = get_cutting_length(path)
+        if not length:
+            return None
+        return (len(get_faces(path)) * 1000) / length
 
     except Exception as ex:
         print(f"Error reading {path}: {ex}")
         return None     
 
 
-def get_circle_length_ratio(path):
+def get_circle_density(path, r_max=2.5):
     """Compute the cutting length of all CIRCLEs & ARCs with radius smaller than 2.5mm."""
     try:
         doc = ezdxf.readfile(path)
@@ -273,10 +276,10 @@ def get_circle_length_ratio(path):
         try:
             etype = e.dxftype()
 
-            if (etype == "CIRCLE") and (e.dxf.radius < 2.5):
+            if (etype == "CIRCLE") and (e.dxf.radius < r_max):
                 circle_length += 2 * math.pi * e.dxf.radius
 
-            elif (etype == "ARC") and (e.dxf.radius < 2.5):
+            elif (etype == "ARC") and (e.dxf.radius < r_max):
                 sweep = (e.dxf.end_angle - e.dxf.start_angle) % 360 # <<< CHANGED: Circle calculation corrected
                 if sweep == 0:
                     sweep = 360
@@ -286,7 +289,53 @@ def get_circle_length_ratio(path):
         except Exception as ex:
             print(f"Error in {path}, entity {etype}: {ex}")
 
-    return (circle_length * 100)/ get_cutting_length(path)
+    length = get_cutting_length(path)
+    if not length:
+        return None
+    return (circle_length * 100) / length
+
+
+def _count_ring_corners(ring, angle_thresh):
+    """Corners of one closed ring: vertices where the direction changes by more than angle_thresh (degrees)."""
+    c = np.asarray(ring.coords)[:-1, :2]                         # last point == first point
+    keep = np.ones(len(c), dtype=bool)
+    keep[1:] = np.any(np.diff(c, axis=0) != 0, axis=1)           # drop duplicates created by SNAP rounding
+    c = c[keep]
+    if len(c) > 1 and np.array_equal(c[0], c[-1]):
+        c = c[:-1]
+    if len(c) < 3:
+        return 0
+
+    b = np.roll(c, -1, axis=0) - c                               # outgoing segment at vertex i
+    a = np.roll(b, 1, axis=0)                                    # incoming segment at vertex i
+    cross = a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0]
+    dot = (a * b).sum(axis=1)
+    turn = np.abs(np.degrees(np.arctan2(cross, dot)))
+    return int((turn > angle_thresh).sum())
+
+
+def get_number_of_corners(path, angle_thresh=30.0):
+    """Number of corners (direction change > angle_thresh) on all cutting contours."""
+    try:
+        n = 0
+        for f, depth in get_faces(path):
+            if depth % 2:                                        # scrap faces share their ring with the parent's hole
+                continue
+            n += _count_ring_corners(f.exterior, angle_thresh)
+            n += sum(_count_ring_corners(r, angle_thresh) for r in f.interiors)
+        return n
+    except Exception as ex:
+        print(f"Error reading {path}: {ex}")
+        return None
+
+
+def get_corner_density(path, angle_thresh=30.0):
+    """Corners per 100 mm cutting length."""
+    n = get_number_of_corners(path, angle_thresh)
+    length = get_cutting_length(path)
+    if n is None or not length:
+        return None
+    return n * 100 / length
 
 
 def get_number_of_holes(path, area_tolerance=1e-3):
