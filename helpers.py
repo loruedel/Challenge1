@@ -330,12 +330,12 @@ def get_number_of_corners(path, angle_thresh=30.0):
 
 
 def get_corner_density(path, angle_thresh=30.0):
-    """Corners per 100 mm cutting length."""
+    """Corners per 1m cutting length."""
     n = get_number_of_corners(path, angle_thresh)
     length = get_cutting_length(path)
     if n is None or not length:
         return None
-    return n * 100 / length
+    return n * 1000 / length
 
 
 def get_number_of_holes(path, area_tolerance=1e-3):
