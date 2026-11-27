@@ -250,7 +250,7 @@ def get_rectangularity_ratio(path):
 
 def get_pierce_per_length_ratio(path):
     try:
-        return len(get_faces(path)) / get_cutting_length(path)
+        return (len(get_faces(path)) * 100)/ get_cutting_length(path)
 
     except Exception as ex:
         print(f"Error reading {path}: {ex}")
@@ -286,10 +286,7 @@ def get_circle_length_ratio(path):
         except Exception as ex:
             print(f"Error in {path}, entity {etype}: {ex}")
 
-    unconnected = sum(line.length for line in get_unconnected_lines(path))       # <<< CHANGED: subtract the length of unconnected lines
-    circle_length -= unconnected
-
-    return circle_length / get_cutting_length(path)
+    return (circle_length * 100)/ get_cutting_length(path)
 
 
 def get_number_of_holes(path, area_tolerance=1e-3):
