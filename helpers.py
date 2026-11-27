@@ -248,8 +248,49 @@ def get_rectangularity_ratio(path):
         return None
 
 
-def get_pierce_points(path):
-    return len(get_faces(path))
+def get_pierce_per_length_ratio(path):
+    try:
+        return len(get_faces(path)) / get_cutting_length(path)
+
+    except Exception as ex:
+        print(f"Error reading {path}: {ex}")
+        return None     
+
+
+def get_circle_length_ratio(path):
+    """Compute the cutting length of all CIRCLEs & ARCs with radius smaller than 2.5mm."""
+    try:
+        doc = ezdxf.readfile(path)
+    except (IOError, ezdxf.DXFError):                    # <<< CHANGED: IOError added
+        print(f"DXF read error: {path}")
+        return None
+
+    msp = doc.modelspace()
+    circle_length = 0.0
+
+    for e in msp:
+        etype = None                                     # <<< NEW: otherwise may be undefined in except statement
+        try:
+            etype = e.dxftype()
+
+            if (etype == "CIRCLE") and (e.dxf.radius < 2.5):
+                circle_length += 2 * math.pi * e.dxf.radius
+
+            elif (etype == "ARC") and (e.dxf.radius < 2.5):
+                sweep = (e.dxf.end_angle - e.dxf.start_angle) % 360 # <<< CHANGED: Circle calculation corrected
+                if sweep == 0:
+                    sweep = 360
+                theta = math.radians(sweep)
+                circle_length += e.dxf.radius * theta
+
+        except Exception as ex:
+            print(f"Error in {path}, entity {etype}: {ex}")
+
+    unconnected = sum(line.length for line in get_unconnected_lines(path))       # <<< CHANGED: subtract the length of unconnected lines
+    circle_length -= unconnected
+
+    return circle_length / get_cutting_length(path)
+
 
 def get_number_of_holes(path, area_tolerance=1e-3):
     """
