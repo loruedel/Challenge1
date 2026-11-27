@@ -1,7 +1,10 @@
 ### DONE:
 
 Additional features: Louis
-- rectengular ratio
+- rectangularity ratio
+- pierce density
+- corner density
+- circle density
 
 Data preparation: Jannick
 - add rectengularity ration to excel
@@ -28,10 +31,7 @@ Univariate: Tabea
 - adjust to customer name/ branch
 
 Additional features: Louis
-- number pierce-points
-- number vertices
-- number small holes
-- Perimeter-to-Area-Ratio
+- specify results of outlier detection
 
 Multivariate: Basti
 - add rectengular ratio
